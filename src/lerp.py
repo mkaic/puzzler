@@ -122,3 +122,19 @@ def n_linear_interp(
         interpolated = a + slope * offsets[..., i].unsqueeze(-1)
 
     return interpolated.squeeze(-1)
+
+
+def get_kernel_coordinates(
+    kernel_size: int, center: Tuple[float, float], scale: float, device: str = None
+):
+    
+    # center is (i,j) indexed. center and scale are both relative to the image shape and clamped to [0,1]
+
+    linspaces = [
+        torch.linspace(i - scale, i + scale, kernel_size, device=device)
+        for i in center
+    ]
+    meshgrid = torch.meshgrid(*linspaces, indexing="ij")
+    kernel_coordinates = torch.stack(meshgrid, dim=-1)
+    kernel_coordinates = kernel_coordinates.reshape(-1, 2)
+    return kernel_coordinates
