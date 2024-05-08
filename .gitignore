@@ -1,6 +1,6 @@
 weights
 *.ckpt
-tests/images
+test_images
 data
 # Byte-compiled / optimized / DLL files
 __pycache__/
