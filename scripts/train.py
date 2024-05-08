@@ -8,14 +8,17 @@ import torch.nn as nn
 from tqdm import tqdm
 from pathlib import Path
 
-import warnings
+KERNEL_SIZE = 5
+HIDDEN_STATE_SIZE = 128
+NUM_CLASSES = 100
+MID_LAYER_SIZE = 128
+ITERATIONS = 4
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DTYPE = torch.float32
 EPOCHS = 100
 BATCH_SIZE = 256
 LR = 1e-3
-
 COMPILE = False
 SAVE = False
 
@@ -30,7 +33,13 @@ print(
 if not Path("puzzler/weights").exists():
     Path("puzzler/weights").mkdir(parents=True)
 
-model = Puzzler()
+model = Puzzler(
+    kernel_size=KERNEL_SIZE,
+    hidden_state_size=HIDDEN_STATE_SIZE,
+    num_classes=NUM_CLASSES,
+    mid_layer_size=MID_LAYER_SIZE,
+    loss_function=nn.CrossEntropyLoss(),
+)
 model = model.to(DEVICE)
 model = model.to(DTYPE)
 
@@ -48,28 +57,23 @@ test_loader = DataLoader(
 
 # Train the model
 optimizer = Adam(model.parameters(), lr=LR)
-criterion = nn.CrossEntropyLoss().to(DEVICE)
 
 test_accuracy = 0
 for epoch in range(EPOCHS):
     model.train()
     pbar = tqdm(train_loader, leave=False)
 
-    for x, y in pbar:
+    for images, labels in pbar:
         optimizer.zero_grad()
 
-        x, y = x.to(DEVICE), y.to(DEVICE)
-        x, y = x.to(DTYPE), y.to(torch.long)
+        images, labels = images.to(DEVICE), labels.to(DEVICE)
+        images, labels = images.to(DTYPE), labels.to(torch.long)
 
-        y_hat = model(x)
-
-        loss = criterion(y_hat, y)
-        loss: torch.Tensor
+        loss, _ = model.multistep(image=images, labels=labels, iterations=ITERATIONS)
+        
         loss.backward()
 
         optimizer.step()
-
-        model.clamp_params()
 
         pbar.set_description(
             f"Epoch {epoch}. Train: {loss.item():.4f}, Test: {test_accuracy:.2%}"
@@ -82,19 +86,19 @@ for epoch in range(EPOCHS):
     total = 0
     correct = 0
     with torch.no_grad():
-        for x, y in tqdm(test_loader, leave=False):
+        for images, labels in tqdm(test_loader, leave=False):
 
-            x: torch.Tensor
-            y: torch.Tensor
+            images: torch.Tensor
+            labels: torch.Tensor
 
-            x, y = x.to(DEVICE), y.to(DEVICE)
-            x, y = x.to(DTYPE), y.to(torch.long)
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
+            images, labels = images.to(DTYPE), labels.to(torch.long)
 
-            y_hat = model(x)
-
-            _, predicted = torch.max(y_hat, dim=1)
-            total += y.shape[0]
-            correct += (predicted == y).sum().item()
+            predictions = model.multistep(image=images, labels=labels, iterations=ITERATIONS)
+            _, predicted = torch.max(predictions, dim=1)
+            
+            total += labels.shape[0]
+            correct += (predicted == labels).sum().item()
 
     test_accuracy = correct / total
     print(f"Epoch {epoch + 1}: {test_accuracy:.2%} accuracy on test set")
