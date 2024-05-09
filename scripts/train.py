@@ -8,18 +8,25 @@ import torch.nn as nn
 from tqdm import tqdm
 from pathlib import Path
 
-KERNEL_SIZE = 5
-HIDDEN_STATE_SIZE = 128
+KERNEL_SIZE = 8
+NUM_FILTERS = 64
+HIDDEN_STATE_SIZE = 256
 NUM_CLASSES = 100
 MID_LAYER_SIZE = 128
-ITERATIONS = 4
+N_MAIN_LAYERS = 4
+ITERATIONS = 8
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-DTYPE = torch.float32
-EPOCHS = 100
+
+print(
+    f"{KERNEL_SIZE=}, {HIDDEN_STATE_SIZE=}, {NUM_CLASSES=}, {MID_LAYER_SIZE=}, {ITERATIONS=}"
+)
+
+DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
+DTYPE = torch.bfloat16
+EPOCHS = 40
 BATCH_SIZE = 256
 LR = 1e-3
-COMPILE = False
+COMPILE = True
 SAVE = False
 
 
@@ -35,13 +42,18 @@ if not Path("puzzler/weights").exists():
 
 model = Puzzler(
     kernel_size=KERNEL_SIZE,
+    num_filters=NUM_FILTERS,
     hidden_state_size=HIDDEN_STATE_SIZE,
     num_classes=NUM_CLASSES,
     mid_layer_size=MID_LAYER_SIZE,
     loss_function=nn.CrossEntropyLoss(),
+    dtype=DTYPE,
 )
 model = model.to(DEVICE)
 model = model.to(DTYPE)
+
+num_params = sum(p.numel() for p in model.parameters())
+print(f"{num_params:,} trainable parameters")
 
 
 # Load the MNIST dataset
@@ -49,10 +61,10 @@ train = CIFAR100(root="./puzzler/data", train=True, download=True, transform=ToT
 test = CIFAR100(root="./puzzler/data", train=False, download=True, transform=ToTensor())
 
 train_loader = DataLoader(
-    train, batch_size=BATCH_SIZE, shuffle=True, drop_last=False, num_workers=4
+    train, batch_size=BATCH_SIZE, shuffle=True, drop_last=False, num_workers=8
 )
 test_loader = DataLoader(
-    test, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=4
+    test, batch_size=BATCH_SIZE, shuffle=False, drop_last=False, num_workers=8
 )
 
 # Train the model
@@ -70,7 +82,7 @@ for epoch in range(EPOCHS):
         images, labels = images.to(DTYPE), labels.to(torch.long)
 
         loss, _ = model.multistep(image=images, labels=labels, iterations=ITERATIONS)
-        
+
         loss.backward()
 
         optimizer.step()
@@ -94,9 +106,11 @@ for epoch in range(EPOCHS):
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             images, labels = images.to(DTYPE), labels.to(torch.long)
 
-            predictions = model.multistep(image=images, labels=labels, iterations=ITERATIONS)
+            _, predictions = model.multistep(
+                image=images, labels=labels, iterations=ITERATIONS
+            )
             _, predicted = torch.max(predictions, dim=1)
-            
+
             total += labels.shape[0]
             correct += (predicted == labels).sum().item()
 
