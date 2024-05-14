@@ -9,7 +9,7 @@ from tqdm import tqdm
 from pathlib import Path
 
 KERNEL_SIZE = 8
-NUM_FILTERS = 64
+NUM_FILTERS = 0
 HIDDEN_STATE_SIZE = 256
 NUM_CLASSES = 100
 MID_LAYER_SIZE = 128
@@ -22,7 +22,7 @@ print(
 )
 
 DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
-DTYPE = torch.bfloat16
+DTYPE = torch.float32
 EPOCHS = 40
 BATCH_SIZE = 256
 LR = 1e-3
