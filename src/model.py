@@ -4,14 +4,16 @@ from torch import Tensor
 from typing import Tuple
 from .fourier_interp import fourier_interp_2d
 
+
 class ResidualLinearLayer(nn.Module):
     def __init__(self, size: int):
         super().__init__()
         self.size = size
         self.linear = nn.Linear(size, size)
-    
+
     def forward(self, x: Tensor) -> Tensor:
         return self.linear(x) + x
+
 
 class Puzzler(nn.Module):
     def __init__(
@@ -35,7 +37,12 @@ class Puzzler(nn.Module):
         self.loss_function = loss_function
         self.dtype = dtype
 
-        input_vector_size = 2 + 1 + (self.num_pixel_values * self.input_channels) + self.hidden_state_size
+        input_vector_size = (
+            2
+            + 1
+            + (self.num_pixel_values * self.input_channels)
+            + self.hidden_state_size
+        )
         output_vector_size = 2 + 1 + self.hidden_state_size
 
         # self.conv = nn.Conv2d(
@@ -61,7 +68,10 @@ class Puzzler(nn.Module):
         )
 
         base_meshgrid = torch.meshgrid(
-            *[torch.arange(kernel_size, dtype=self.dtype) / kernel_size for _ in range(2)],
+            *[
+                torch.arange(kernel_size, dtype=self.dtype) / kernel_size
+                for _ in range(2)
+            ],
             indexing="ij"
         )  # grid_sample expects xy indexing
         base_meshgrid = torch.stack(
@@ -102,15 +112,19 @@ class Puzzler(nn.Module):
         coordinates = coordinates.reshape(B, self.num_pixel_values, 2)
 
         pixel_values = fourier_interp_2d(image=image, sample_points=coordinates)
-        pixel_values = pixel_values.reshape(B, self.num_pixel_values * self.input_channels)
-        
+        pixel_values = pixel_values.reshape(
+            B, self.num_pixel_values * self.input_channels
+        )
+
         # filtered = self.conv(pixel_values).reshape(batch_size, -1)
 
-        input_vectors = torch.cat([locations, scales, pixel_values, hidden_state], dim=-1)
+        input_vectors = torch.cat(
+            [locations, scales, pixel_values, hidden_state], dim=-1
+        )
 
         output_vectors = torch.tanh(self.main_mlp(input_vectors))
 
-        locations = locations + output_vectors[:, :2] 
+        locations = locations + output_vectors[:, :2]
         scales = scales + output_vectors[:, 2:3]
 
         hidden_state = hidden_state + output_vectors[:, 3:]  # residual connection

@@ -9,7 +9,9 @@ EPSILON = 1e-8
 # 4. https://gatiaher.github.io/projects/1d-and-2d-fourier-transforms/
 
 
-def fourier_interp_2d(image: torch.Tensor, sample_points: torch.Tensor, freq_mask: torch.Tensor = None) -> torch.Tensor:
+def fourier_interp_2d(
+    image: torch.Tensor, sample_points: torch.Tensor, freq_mask: torch.Tensor = None
+) -> torch.Tensor:
     """
     image has shape (B, C, H, W)
     sample_points has shape (B, N, 2) and all values are in the range [0,1]
