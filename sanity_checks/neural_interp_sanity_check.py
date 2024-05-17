@@ -3,22 +3,27 @@ from torchvision.transforms.functional import to_tensor
 from ..src.neural_interp import BilinearInterpolator
 import matplotlib.pyplot as plt
 from PIL import Image
+import torchvision.transforms.functional as F
 
 with torch.no_grad():
 
     DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
-    interpolator = BilinearInterpolator(n_layers=4, c=32, l=32)
-    interpolator.load_state_dict(torch.load("puzzler/weights/interpolator/0000100.ckpt"))
+    interpolator = BilinearInterpolator(n_layers=16, c=32, l=64)
+    interpolator = torch.compile(interpolator)
+    interpolator.load_state_dict(torch.load("puzzler/weights/interpolator/0004000.ckpt"))
     interpolator.eval()
     interpolator = interpolator.to(DEVICE)
 
     BATCH_SIZE = 1
-    H_i, W_i = 64, 64
+    H_i, W_i = 32, 32
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+    resolutions = (16, 32, 64, 128)
+
+    fig, axes = plt.subplots(1, len(resolutions)+1, figsize=(16, 5))
 
     image = Image.open("puzzler/branos_64.jpg")
     image = to_tensor(image)
+    image = F.resize(image, (H_i, W_i))
     C, H_i, W_i = image.shape
     image = image.reshape(1, C, H_i, W_i)
     image = image.expand(BATCH_SIZE, C, H_i, W_i)
@@ -29,7 +34,7 @@ with torch.no_grad():
 
     image = image.to(DEVICE)
 
-    for i, resolution in enumerate((64,), start=1):
+    for i, resolution in enumerate(resolutions, start=1):
 
         H_a, W_a = (resolution, resolution)
 

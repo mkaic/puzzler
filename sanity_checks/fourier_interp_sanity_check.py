@@ -34,17 +34,6 @@ for i, resolution in enumerate((32, 64, 128), start=1):
     output_points = output_points.expand(BATCH_SIZE, H_a, W_a, 2)
     output_points = output_points.reshape(BATCH_SIZE, H_a * W_a, 2)
 
-    # freqency_mask = torch.meshgrid(
-    #     torch.arange(H_i) / (H_i - 1),
-    #     torch.arange(W_i) / (W_i - 1),
-    #     indexing="ij",
-    # )
-    # frequency_mask = torch.stack(freqency_mask, dim=-1)
-    # frequency_mask = torch.square(frequency_mask)
-    # frequency_mask = torch.sum(frequency_mask, dim=-1)
-    # frequency_mask = torch.sqrt(frequency_mask)
-    # frequency_mask = frequency_mask < 1
-
     fourier_output = fourier_interp_2d(image=image, sample_points=output_points)
 
     fourier_output = fourier_output.view(BATCH_SIZE, C, H_a, W_a)[1]

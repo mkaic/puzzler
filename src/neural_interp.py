@@ -3,16 +3,26 @@ from torch import Tensor
 import torch
 
 
-class ConvRelu(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, padding=0, stride=1):
+class ConvAct(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, padding=0, stride=1, residual=False):
         super().__init__()
+
+        self.residual = residual
+
         self.conv = nn.Conv2d(
             in_channels, out_channels, kernel_size=kernel_size, padding=padding, stride=stride
         )
-        self.relu = nn.ReLU()
+        self.act = nn.LeakyReLU(0.1)
 
     def forward(self, x):
-        return self.relu(self.conv(x))
+
+        x_ = self.conv(x)
+        if self.residual:
+            x = x + x_
+        else:
+            x = x_
+
+        return self.act(x)
 
 
 class BilinearInterpolator(nn.Module):
@@ -20,23 +30,22 @@ class BilinearInterpolator(nn.Module):
 
     def __init__(self, n_layers, c, l):
         super().__init__()
-        c = c
-        l = l
-        n_layers = 16
         conv_layers = [
-            ConvRelu(3, c, kernel_size=3, padding=1),  # c x 32x32
+            ConvAct(3+2+2, c, kernel_size=1, padding=0),  # c x 32x32
+            *[ConvAct(c, c, kernel_size=1, padding=0, residual=True)] * 4, # makes n_layers COPIES
 
-            *[ConvRelu(c, c, kernel_size=3, padding=1)] * n_layers,
+            *[ConvAct(c, c, kernel_size=3, padding=1, residual=True)] * n_layers, # makes n_layers COPIES
 
-            *[ConvRelu(c, c, kernel_size=2, stride=2, padding=0)] * 5, # c x 1 x 1
+            *[ConvAct(c, c, kernel_size=2, stride=2, padding=0)] * 3, # makes n_layers COPIES
 
-            ConvRelu(c, l, kernel_size=1, padding=0),  # l x 1 x 1
+            nn.AdaptiveAvgPool2d((1, 1)), # c x 1 x 1
+
+            ConvAct(c, l, kernel_size=1, padding=0),  # l x 1 x 1
+
             nn.Flatten(),
         ]
         linear_layers = [
-            nn.Linear(l + 2, l),
-            nn.ReLU(),
-            *[nn.Linear(l, l), nn.ReLU()]*3,
+            *[nn.Linear(l, l), nn.ReLU()]*1,
             nn.Linear(l, 3),
             nn.Sigmoid(),
         ]
@@ -50,16 +59,24 @@ class BilinearInterpolator(nn.Module):
         B, C, H, W = image.shape
         B, N, D = coords.shape
 
-        image = image.reshape(B, 1, C, H, W).expand(B, N, C, H, W)
-        image = image.reshape(B*N, C, H, W)
+        position_encoding = torch.meshgrid(
+            torch.arange(H, dtype=torch.float32, device=image.device) / (H-1),
+            torch.arange(W, dtype=torch.float32, device=image.device) / (W-1),
+            indexing='ij'
+        )
+        position_encoding = torch.stack(position_encoding, dim=0).view(1, 2, H, W).expand(B, 2, H, W)
+        image = torch.cat([image, position_encoding], dim=1)
 
-        coords = coords.reshape(B*N, D)
+        image = image.reshape(B, 1, 3+2, H, W).expand(B, N, 3+2, H, W)
+        image = image.reshape(B*N, 3+2, H, W)
+
+        coords = coords.reshape(B*N, D, 1, 1).expand(B*N, D, H, W)
+
+        image = torch.cat([image, coords], dim=1) # B*N x 3+2+2 x H x W
 
         image_features = self.conv_layers(image).reshape(B*N, -1)
 
-        features = torch.cat([image_features, coords], dim=-1)
-
-        predictions:Tensor = self.linear_layers(features)
+        predictions:Tensor = self.linear_layers(image_features)
         predictions = predictions.reshape(B, N, 3)
         predictions = predictions.permute(0, 2, 1)
 
