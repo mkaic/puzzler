@@ -1,20 +1,21 @@
-import torch
-from torchvision.datasets import CIFAR100
-from torchvision.transforms import ToTensor
-from ..src.model import Puzzler
-from torch.utils.data import DataLoader
-from torch.optim import Adam
-import torch.nn as nn
-from tqdm import tqdm
 from pathlib import Path
 
-KERNEL_SIZE = 8
-NUM_FILTERS = 0
-HIDDEN_STATE_SIZE = 256
+import torch
+import torch.nn as nn
+from torch.optim import Adam
+from torch.utils.data import DataLoader
+from torchvision.datasets import CIFAR100
+from torchvision.transforms import ToTensor
+from tqdm import tqdm
+
+from ..src.model import Puzzler
+
+KERNEL_SIZE = 4
+HIDDEN_STATE_SIZE = 512
 NUM_CLASSES = 100
-MID_LAYER_SIZE = 128
-N_MAIN_LAYERS = 4
-ITERATIONS = 8
+MID_LAYER_SIZE = 1024
+N_MAIN_LAYERS = 5
+ITERATIONS = 32
 
 
 print(
@@ -24,9 +25,9 @@ print(
 DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
 DTYPE = torch.float32
 EPOCHS = 40
-BATCH_SIZE = 256
-LR = 1e-3
-COMPILE = True
+BATCH_SIZE = 1024
+LR = 5e-5
+COMPILE = False
 SAVE = False
 
 
@@ -42,7 +43,6 @@ if not Path("puzzler/weights").exists():
 
 model = Puzzler(
     kernel_size=KERNEL_SIZE,
-    num_filters=NUM_FILTERS,
     hidden_state_size=HIDDEN_STATE_SIZE,
     num_classes=NUM_CLASSES,
     mid_layer_size=MID_LAYER_SIZE,
@@ -98,7 +98,7 @@ for epoch in range(EPOCHS):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, labels in tqdm(test_loader, leave=False):
+        for i, (images, labels) in enumerate(tqdm(test_loader, leave=False)):
 
             images: torch.Tensor
             labels: torch.Tensor
@@ -107,7 +107,10 @@ for epoch in range(EPOCHS):
             images, labels = images.to(DTYPE), labels.to(torch.long)
 
             _, predictions = model.multistep(
-                image=images, labels=labels, iterations=ITERATIONS
+                image=images,
+                labels=labels,
+                iterations=ITERATIONS,
+                print_locations=i == 0,
             )
             _, predicted = torch.max(predictions, dim=1)
 

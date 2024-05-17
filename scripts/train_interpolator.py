@@ -18,7 +18,7 @@ SAVE = True
 weights_path = Path("puzzler/weights/interpolator/")
 weights_path.mkdir(parents=True, exist_ok=True)
 
-model = BilinearInterpolator(n_layers=8, c=16, l=16)
+model = BilinearInterpolator(n_reps=8, c=16, l=16)
 model.train()
 model = model.to(DEVICE)
 
@@ -39,14 +39,13 @@ for i in pbar:
 
     H_, W_ = torch.randint(8, 256, (2,), device=DEVICE)
     H, W = torch.randint(32, 256, (2,), device=DEVICE)
-    
 
     input_images = torch.rand((BATCH_SIZE, 3, H_, W_), device=DEVICE, dtype=DTYPE)
     input_images = F.interpolate(input_images, size=(H, W), mode="bilinear")
 
     input_sample_coords = torch.rand((BATCH_SIZE, 1, 1, 2), device=DEVICE, dtype=DTYPE)
-    for_grid_sample = (input_sample_coords - 0.5) * 2 # scale to [-1, 1]
-    for_grid_sample = for_grid_sample[..., [1, 0]] # swap x and y
+    for_grid_sample = (input_sample_coords - 0.5) * 2  # scale to [-1, 1]
+    for_grid_sample = for_grid_sample[..., [1, 0]]  # swap x and y
     input_labels = (
         F.grid_sample(input_images, input_sample_coords, align_corners=False)
         .squeeze(2)
