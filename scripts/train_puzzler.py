@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 
 import torch
@@ -10,12 +11,12 @@ from tqdm import tqdm
 
 from ..src.model import Puzzler
 
-KERNEL_SIZE = 4
-HIDDEN_STATE_SIZE = 512
+KERNEL_SIZE = 5
+HIDDEN_STATE_SIZE = 128
 NUM_CLASSES = 100
-MID_LAYER_SIZE = 1024
-N_MAIN_LAYERS = 5
-ITERATIONS = 32
+MID_LAYER_SIZE = 128
+N_MAIN_LAYERS = 12
+ITERATIONS = 8
 
 
 print(
@@ -25,9 +26,9 @@ print(
 DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
 DTYPE = torch.float32
 EPOCHS = 40
-BATCH_SIZE = 1024
-LR = 5e-5
-COMPILE = False
+BATCH_SIZE = 256
+LR = 1e-4
+COMPILE = True
 SAVE = False
 
 
@@ -106,11 +107,14 @@ for epoch in range(EPOCHS):
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             images, labels = images.to(DTYPE), labels.to(torch.long)
 
+            random_locations = random.random() < 0.5
+
             _, predictions = model.multistep(
                 image=images,
                 labels=labels,
                 iterations=ITERATIONS,
                 print_locations=i == 0,
+                random_locations=False,
             )
             _, predicted = torch.max(predictions, dim=1)
 
